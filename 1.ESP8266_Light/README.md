@@ -2,7 +2,7 @@
 ## ESP8266 Light
 Use ESP-01 module to control led through MQTT protocol.
 
-
+![image](https://github.com/marcusj1248/HomeAssistantProject/blob/main/1.ESP8266_Light/ESP8266_Light.jpg)
 ## Home Assistant Configuration.yaml
 ```
 switch:
