@@ -100,7 +100,7 @@ void loop() {
   client.loop();
 
   long now = millis();
-  if (now - lastMsg > 2000) {
+  if (now - lastMsg > 2000) { // publish status every 2 sec
     lastMsg = now;
     snprintf(msg, sizeof(msg), "%d",ledstate);
     Serial.print("Publish message: ");
