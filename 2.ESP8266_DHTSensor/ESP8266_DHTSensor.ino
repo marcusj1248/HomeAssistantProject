@@ -1,6 +1,14 @@
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 
+#include <DHT.h>
+
+#define DHTPIN 0     // Digital pin connected to the DHT sensor
+//#define DHTTYPE DHT11   // DHT 11
+#define DHTTYPE DHT22   // DHT 22  (AM2302), AM2321
+//#define DHTTYPE DHT21   // DHT 21 (AM2301)
+DHT dht(DHTPIN, DHTTYPE);
+
 // Update these with values suitable for your network.
 long serial_speed = 115200;
 const char* ssid = "your_ssid";
@@ -10,15 +18,16 @@ int mqtt_port = 1883;
 const char* user_name = "mqtt_username"; 
 const char* user_password = "mqtt_password";
 
-// topic which want to subscribe and publish
-const char* topic_subscribe = "ha/bedroom/ledlight/switch";
-const char* topic_publish = "ha/bedroom/ledlight/status";
+// topic which want to publish
+const char* topic_publish = "ha/bedroom/HTSensor";
+
+//Timer timer;
 
 WiFiClient espClient;
 PubSubClient client(espClient);
 long lastMsg = 0;
-char msg[20];
-int ledstate = 0;
+char msg[50];
+
 
 void setup_wifi() {
   delay(10);
@@ -41,29 +50,6 @@ void setup_wifi() {
   Serial.println(WiFi.localIP());
 }
 
-void callback(char* topic, byte* payload, unsigned int length) 
-{
-  Serial.print("Command from MQTT broker is : [");
-  Serial.print(topic);
-  Serial.print("]");
-  int p =(char)payload[0]-'0';
- 
-  if(p==0) // if get "0" trun off the LED
-  {
-    digitalWrite(2, LOW); 
-    ledstate = 0;
-    Serial.println(" Turn Off LED! " );
-  } 
-  
-  if(p==1) // if get "1" trun on the LED
-  {
-    digitalWrite(2, HIGH); 
-    ledstate = 1;
-    Serial.println(" Turn On LED! " );
-  }
-  Serial.println();
-} //end callback
-
 void reconnect() {
   // Loop until we're reconnected
   while (!client.connected()) {
@@ -74,7 +60,7 @@ void reconnect() {
     // Attempt to connect
     if (client.connect(clientId.c_str(),user_name,user_password)) {
       Serial.println("connected");
-      client.subscribe(topic_subscribe);
+      //client.subscribe(topic_subscribe);
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());
@@ -89,8 +75,7 @@ void setup() {
   Serial.begin(serial_speed);
   setup_wifi();
   client.setServer(mqtt_server, mqtt_port);
-  client.setCallback(callback);
-  
+  dht.begin();
 }
 void loop() {
     
@@ -100,11 +85,33 @@ void loop() {
   client.loop();
 
   long now = millis();
-  if (now - lastMsg > 2000) { // publish status every 2 sec
+  if (now - lastMsg > 2000) {
     lastMsg = now;
-    snprintf(msg, sizeof(msg), "%d",ledstate);
+
+    float h = dht.readHumidity();
+    float t = dht.readTemperature();
+
+    // Check if any reads failed and exit early.
+    if (isnan(h) || isnan(t)) {
+      Serial.println(F("Failed to read from DHT sensor!"));
+      return;
+    }
+    // Compute heat index in Celsius (isFahreheit = false)
+    float hic = dht.computeHeatIndex(t, h, false);
+    
+    snprintf(msg, sizeof(msg), "{\"humidity\":\"%.0f\",\"temperature\":\"%.1f\"}", h, t);
     Serial.print("Publish message: ");
     Serial.println(msg);
     client.publish(topic_publish, msg);
+
+    Serial.print(F("Humidity: "));
+    Serial.print(h);
+    Serial.print(F("%  Temperature: "));
+    Serial.print(t);
+    Serial.print(F("°C "));
+    Serial.print(F("Heat index: "));
+    Serial.print(hic);
+    Serial.print(F("°C \n"));
+
   }
 }
